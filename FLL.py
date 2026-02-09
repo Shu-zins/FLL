@@ -1,0 +1,191 @@
+import runloop, motor, motor_pair, math
+from hub import port, motion_sensor
+
+sensor = port.E
+leftMotor = port.B
+rightMotor = port.D
+rightProt = port.C
+leftProt = port.A
+motor_pair.pair(motor_pair.PAIR_1, leftMotor, rightMotor)
+
+move_speed = 800
+rot_speed = 400
+
+async def main():
+    newZero()
+
+    #await gira_di_gradi(90, -1)
+    #print("Test")
+    #await runloop.sleep_ms(500)
+    #await turn_to(0, -1)
+    #await runloop.sleep_ms(60000)
+
+    #motor_pair.move(motor_pair.PAIR_1, 10)
+    #await runloop.sleep_ms(60000)
+    #Run 1
+    #await move_by(35)
+    #await move_by(-35)
+
+    #Run 2
+    #await move_by(50)
+    #await move_by(-52)
+    
+    '''
+    #Run 3
+    move_motor(leftProt, 130, 1)
+    #motor.run_for_degrees(leftProt, 85, -rot_speed)
+    await move_by(65)
+    #Spazzaterra
+    await move_by(-12)
+    await move_by(17.75)
+    #await move_by(25,  s = 14, a = 0)
+    #await move_by(25,s = 14, a = 0)
+    #await turn_to(270, -1)
+    
+    await gira_di_gradi(90, -1)
+    move_motor(leftProt, 150, -1)
+    #motor.run_for_degrees(leftProt, 85, rot_speed)
+    #turn_to(90, -1)
+    
+    await move_by(28.25)
+    #alza carrello
+    move_motor(leftProt, 375, 1)
+    #motor.run_for_degrees(leftProt, 275, rot_speed)
+    move_motor(leftProt, 375, -1)
+    #motor.run_for_degrees(leftProt, 275, -rot_speed)
+
+    await move_by(54.5)
+    #abbassa cesto
+    move_motor(leftProt, 700, 1)
+    #motor.run_for_degrees(leftProt, 360, -rot_speed)
+    move_motor(leftProt, 600, -1)
+    #await gira_di_gradi(4, -1)
+    #motor.run_for_degrees(leftProt, 360, rot_speed)
+
+    await move_by(40)
+    move_motor(leftProt, 120, 1)
+    #motor.run_for_degrees(leftProt, 117, -rot_speed)
+    await move_by(-12.5)
+    move_motor(leftProt, 200, 1)
+    #motor.run_for_degrees(leftProt, 200, -rot_speed)
+    await move_by(12.5)
+    await gira_di_gradi(70, -1)
+    await move_by(45)
+    #turn_to(180, -1)
+
+    #move_by()
+    #turn_by()
+    #move_by()
+    '''
+
+    #Run 4
+    await move_by(50)
+    move_motor(rightProt, 90, 1, v=100000)
+    await move_by(-50)
+
+async def turn_to(a, side):
+    wheel = leftMotor if side == -1 else rightMotor
+    motor.run(wheel, side*250) 
+    while abs(rotation() - a) > 1:
+        runloop.sleep_ms(50)
+    
+    motor.stop(wheel)
+
+def newZero():
+    #reset gyro and encoders
+    while motion_sensor.stable is False:
+        pass
+
+    motion_sensor.reset_yaw(0)
+    motor.reset_relative_position(leftMotor, 0)
+    motor.reset_relative_position(rightMotor, 0)
+
+async def move_by(cm, *, v = move_speed, s = 0, a = 300):
+    d = cmToDeg(abs(cm))
+    step = a  * 0.05 if a != 0 else v
+    k = sign(cm)
+    motor.reset_relative_position(leftMotor,0)
+    motor.reset_relative_position(rightMotor,0)
+    motor_pair.move(motor_pair.PAIR_1, s, velocity = int(k*step))
+
+    m = v/step
+    i = 1
+
+    while (abs(motor.relative_position(leftMotor)) + abs(motor.relative_position(rightMotor)))/2 < d:
+        await runloop.sleep_ms(50)
+        i += 1
+        i = min(i, m)
+        motor_pair.move(motor_pair.PAIR_1, s, velocity = int(k*step*i))
+
+
+    motor_pair.stop(motor_pair.PAIR_1)
+
+def turn_by(amount, *, v = rot_speed):
+    v *= 660
+    k = sign(amount)
+    motor.reset_relative_position(leftMotor,0)
+    motor.reset_relative_position(rightMotor,0)
+    motor_pair.move(motor_pair.PAIR_1, k*100, velocity = int(v))
+
+    while abs(motor.relative_position(rightMotor)) < abs(amount)*2:
+        pass
+    motor_pair.stop(motor_pair.PAIR_1)
+
+def move_motor(chosen_motor, rot, d, *, v = rot_speed):
+    motor.reset_relative_position(chosen_motor, 0)
+    motor.run(chosen_motor, d*int(v))
+    while abs(motor.relative_position(chosen_motor)) < rot - 20:
+        pass
+    motor.stop(chosen_motor)
+
+def turn_single(a, side):
+    wheel = leftMotor if side == -1 else rightMotor
+    motor.reset_relative_position(wheel, 0)
+    #motor.run_to_relative_position(a)
+
+def rotation():
+    w, x, y, z = motion_sensor.quaternion()
+    radianti = math.atan2(2*(w*z + x*y), 1 - 2 * (y*y + z*z))
+    return (math.degrees(radianti) + 360) % 360
+
+# La funzione deve essere async
+async def gira_di_gradi(gradi_da_ruotare, side):
+    start_angle = rotation()
+    # Esempio semplificato: calcola il target assoluto
+    target = 0
+    if side == 1:
+        target = (start_angle + gradi_da_ruotare) % 360
+    elif side == -1:
+        target = (start_angle + 360 - gradi_da_ruotare) % 360
+
+    wheel = leftMotor if side == -1 else rightMotor
+
+    motor.run(wheel, side*250)
+
+    # Ciclo asincrono
+    while abs(rotation() - target) > 2: # Tolleranza di 2 gradi
+        await runloop.sleep_ms(50) # FONDAMENTALE: permette allo hub di respirare
+
+    motor.stop(wheel)
+
+def cmToDeg(cm):
+    return int((cm/(5.6 * 3.1415926535)) * 360)
+
+def angle():
+    return motion_sensor.tilt_angles()[0]*0.1
+
+def simplify(a):
+    if a < -180:
+        return simplify(a + 360)
+    if a > 180:
+        return simplify(a - 360)
+    return a
+
+def sign(x):
+    if x < 0:
+        return -1
+    if x > 0:
+        return 1
+    return 0
+
+runloop.run(main())
